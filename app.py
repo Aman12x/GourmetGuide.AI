@@ -21,21 +21,28 @@ st.set_page_config(
     page_title="GourmetGuide AI",
     page_icon="🍽️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
 
-# Load environment variables
+# --- CREDENTIAL LOADING (THE FIX) ---
+# 1. Load local .env file (for when running on your laptop)
 load_dotenv()
+
+# 2. Bridge Streamlit Cloud Secrets to System Environment
+# Boto3 looks for keys in os.environ, but Streamlit Cloud stores them in st.secrets.
+# We manually copy them over so Boto3 can find them.
+if "AWS_ACCESS_KEY_ID" in st.secrets:
+    os.environ["AWS_ACCESS_KEY_ID"] = st.secrets["AWS_ACCESS_KEY_ID"]
+    os.environ["AWS_SECRET_ACCESS_KEY"] = st.secrets["AWS_SECRET_ACCESS_KEY"]
+    os.environ["AWS_DEFAULT_REGION"] = st.secrets["AWS_DEFAULT_REGION"]
 
 # --- INITIALIZE AWS CLIENTS ---
 try:
-    # Boto3 will automatically use credentials from .env
+    # Boto3 will now automatically find the keys in os.environ
     bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 
     # Define embeddings
-    embeddings = BedrockEmbeddings(
-        client=bedrock, model_id="amazon.titan-embed-text-v2:0"
-    )
+    embeddings = BedrockEmbeddings(client=bedrock, model_id="amazon.titan-embed-text-v2:0")
 
     # Initialize LLM
     model_kwargs = {
@@ -77,15 +84,16 @@ if "assistant_response" not in st.session_state:
 with st.sidebar:
     st.title("🍽️ Settings")
     st.markdown("---")
-
+    
     st.subheader("📷 Visual Search")
     uploaded_image = st.file_uploader(
-        "Upload a food image to find similar dishes:", type=["png", "jpg", "jpeg"]
+        "Upload a food image to find similar dishes:", 
+        type=["png", "jpg", "jpeg"]
     )
-
+    
     if uploaded_image:
         st.image(uploaded_image, caption="Preview", use_container_width=True)
-
+    
     st.markdown("---")
     if st.button("🗑️ Clear Chat History", type="primary"):
         st.session_state["generated"] = []
@@ -96,9 +104,7 @@ with st.sidebar:
 # --- MAIN CHAT INTERFACE ---
 st.title("GourmetGuide AI")
 st.markdown("### *Your Personal Culinary Concierge*")
-st.markdown(
-    "Ask me about cuisines, dietary preferences, or upload a photo of a dish you love!"
-)
+st.markdown("Ask me about cuisines, dietary preferences, or upload a photo of a dish you love!")
 st.divider()
 
 # Display Chat History
@@ -110,10 +116,10 @@ with chat_container:
         # 1. User Message
         with st.chat_message("user"):
             st.markdown(st.session_state["past"][i])
-
+        
         # 2. Assistant Message
         response_data, images = st.session_state["generated"][i]
-
+        
         with st.chat_message("assistant"):
             # Check if it's a recommendation list (list) or normal text (str)
             if isinstance(response_data, list):
@@ -122,28 +128,26 @@ with chat_container:
                     # Create a card-like layout for each dish
                     with st.container():
                         col1, col2 = st.columns([1, 3])
-
+                        
                         # Image Column
                         image_path = list(images.keys())[j]
                         metadata = images[image_path]
-
+                        
                         with col1:
                             st.image("data/" + image_path, use_container_width=True)
-
+                        
                         # Details Column
                         with col2:
-                            st.subheader(metadata.get("menu_item_name", "Unknown Dish"))
+                            st.subheader(metadata.get('menu_item_name', 'Unknown Dish'))
                             st.markdown(f"**{rec}**")
-                            st.caption(
-                                f"📍 {metadata.get('restaurant_name', 'N/A')} | ⭐ {metadata.get('average_rating', 'N/A')}"
-                            )
-
+                            st.caption(f"📍 {metadata.get('restaurant_name', 'N/A')} | ⭐ {metadata.get('average_rating', 'N/A')}")
+                            
                             # Metrics in a mini-row
                             m1, m2, m3 = st.columns(3)
                             m1.metric("Price", f"${metadata.get('price', '0')}")
-                            m2.metric("Calories", metadata.get("calories", "N/A"))
-                            m3.metric("Serves", metadata.get("serves", "1"))
-
+                            m2.metric("Calories", metadata.get('calories', 'N/A'))
+                            m3.metric("Serves", metadata.get('serves', '1'))
+                        
                         st.divider()
             else:
                 # Normal conversational response
@@ -153,17 +157,17 @@ with chat_container:
 # We use a form so hitting 'Enter' works naturally
 with st.form(key="chat_form", clear_on_submit=True):
     col_input, col_btn = st.columns([6, 1])
-
+    
     with col_input:
         user_input = st.text_input(
-            "Type your request...",
+            "Type your request...", 
             placeholder="E.g., I want something spicy and italian...",
-            key="input_field",
+            key="input_field"
         )
-
+    
     with col_btn:
         # Align button with input box
-        st.write("")
+        st.write("") 
         st.write("")
         submit_button = st.form_submit_button("Send 🚀")
 
@@ -178,17 +182,17 @@ if submit_button and (user_input or uploaded_image):
         # Reset file pointer if needed, though Streamlit handles this well usually
         uploaded_image.seek(0)
         encoded_image = base64.b64encode(uploaded_image.read()).decode("utf-8")
-
+        
         with st.spinner("Analyzing your image..."):
             image_description = describe_input_image(encoded_image, llm)
-
+        
         # Enhance prompt with image context
-        user_input = f"I am looking for this dish, recommend similar dishes: {user_input} {image_description}"
+        user_input = (
+            f"I am looking for this dish, recommend similar dishes: {user_input} {image_description}"
+        )
 
     # Save User Input to History
-    st.session_state.past.append(
-        original_input if original_input.strip() else "[Image Uploaded]"
-    )
+    st.session_state.past.append(original_input if original_input.strip() else "[Image Uploaded]")
 
     with st.spinner("Thinking..."):
         # Enhance search query
@@ -197,7 +201,7 @@ if submit_button and (user_input or uploaded_image):
 
         # Retrieve documents
         results = db.similarity_search(user_input, k=5)
-
+        
         context = ""
         for doc in results:
             context += doc.page_content + "\n\n"
@@ -209,7 +213,7 @@ if submit_button and (user_input or uploaded_image):
             # We filter out complex objects (tuples) from history for the LLM context
             past_texts = st.session_state["past"][:-1]
             past_responses = st.session_state["assistant_response"]
-
+            
             for u, a in zip(past_texts, past_responses):
                 chat_history.append((u, a))
 
@@ -220,14 +224,11 @@ if submit_button and (user_input or uploaded_image):
         try:
             chatbot_response = json.loads(chatbot_response_raw)
         except json.JSONDecodeError:
-            chatbot_response = {
-                "recommendation": "no",
-                "response": chatbot_response_raw,
-            }
+            chatbot_response = {"recommendation": "no", "response": chatbot_response_raw}
 
         recommendation = chatbot_response.get("recommendation", "no")
         response_text = chatbot_response.get("response", "")
-
+        
         # Save raw text response for memory
         st.session_state.assistant_response.append(response_text)
 
@@ -235,7 +236,7 @@ if submit_button and (user_input or uploaded_image):
         if recommendation == "yes":
             # Pass original input if image was used, to avoid passing the long description text
             search_input = original_input if image_flag == "yes" else user_input
-
+            
             rec_response, relevant_images = recommend_dishes_by_preference(
                 results, search_input, llm
             )
