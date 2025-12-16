@@ -95,6 +95,7 @@ streamlit run app.py
 > **User:** *Uploads a picture of a pepperoni pizza*
 >
 > **System:** "This looks like a classic Pepperoni Pizza with a crispy crust. Based on this, I recommend the 'Spicy Salami Pizza' from Tony's Bistro. It has similar toppings but with an extra kick of chili oil. Would you like to check the nutrition facts?"
+<img width="1440" height="802" alt="image" src="https://github.com/user-attachments/assets/61846b9c-8627-4b7a-8ceb-200dff5018d9" />
 
 -----
 
