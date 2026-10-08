@@ -1,104 +1,112 @@
+# 🍽️ GourmetGuide AI: Multimodal RAG Food Recommender on Amazon Bedrock
 
-# 🍽️ GourmetGuide AI: Multimodal RAG Food Recommendation System
+GourmetGuide recommends dishes from a 50-item menu across 10 restaurants. You can ask in plain language ("something spicy and vegetarian under $10, no nuts") or upload a photo of a dish you like.
 
-> **A context-aware recommendation engine powered by AWS Bedrock, Claude 3, and Vector Search.**
+<img width="1440" height="802" alt="GourmetGuide screenshot" src="https://github.com/user-attachments/assets/61846b9c-8627-4b7a-8ceb-200dff5018d9" />
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
-[![AWS](https://img.shields.io/badge/AWS-Bedrock-orange)](https://aws.amazon.com/bedrock/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.32-red)](https://streamlit.io/)
-[![LangChain](https://img.shields.io/badge/LangChain-v0.1-green)](https://langchain.com/)
+## How it works
 
-## 📖 Project Objective
-The goal of this project is to solve the "choice paralysis" problem in food ordering by building a **Multimodal Retrieval-Augmented Generation (RAG)** system. Unlike traditional keyword search, GourmetGuide AI understands both **textual preferences** ("I want something spicy and Italian") and **visual inputs** (uploading a photo of a dish) to generate personalized, context-aware recommendations from a curated restaurant dataset.
-
-## ⚙️ High-Level Architecture
-The system follows a modern RAG pipeline deployed on AWS infrastructure:
-
-1.  **Data Ingestion:** Restaurant menu data (images & metadata) is stored in **Amazon S3**.
-2.  **Multimodal Processing:**
-    * **Text:** Embedded using **Amazon Titan Embeddings v2**.
-    * **Images:** Analyzed using **Claude 3 Sonnet** to generate descriptive textual representations.
-3.  **Vector Storage:** Embeddings are indexed in **FAISS** for low-latency similarity retrieval.
-4.  **Retrieval & Generation:**
-    * User query (Text/Image) -> Vector Search -> Top-K Relevant Contexts.
-    * **Claude 3 Sonnet** synthesizes the context + conversation history to generate a natural language response.
-5.  **Frontend:** An interactive **Streamlit** application allows users to chat and upload images in real-time.
-
-
-
-## 🚀 Key Features
-* **📷 Visual Search (Multimodal):** Users can upload an image of food (e.g., a photo from Instagram), and the system uses **Claude 3 Vision** to interpret the dish and find similar items in the menu.
-* **🧠 Context-Aware Memory:** Maintains conversational state (up to 5 turns), allowing users to refine requests (e.g., "Show me pasta" -> "What about something cheaper?").
-* **🔍 Hybrid Search:** Combines semantic vector search (FAISS) with structured filtering (Dietary preferences, Price, Cuisine).
-* **☁️ Cloud-Native:** Fully integrated with **AWS Bedrock** via `boto3` for scalable model inference.
-
-## 🛠️ Tech Stack
-* **Language:** Python 3.10+
-* **GenAI Models:** Anthropic Claude 3 Sonnet (Reasoning & Vision), Amazon Titan v2 (Embeddings).
-* **Orchestration:** LangChain (Chains, Prompts, Memory).
-* **Vector Database:** FAISS (Facebook AI Similarity Search).
-* **Cloud Infrastructure:** AWS S3 (Storage), AWS Bedrock (Model-as-a-Service).
-* **Frontend:** Streamlit & Streamlit Chat.
-
-## 📂 Project Structure
-```bash
-├── app.py                 # Main Streamlit application entry point
-├── utils.py               # Core logic (RAG pipeline, Bedrock client, Search)
-├── admin_utils.py         # Data ingestion and vector DB creation scripts
-├── requirements.txt       # Python dependencies
-├── .env                   # Environment variables (AWS Keys - Not committed)
-└── output/
-    └── faiss_index/       # Local vector store indices
-````
-
-## ⚡ Setup & Installation
-
-**1. Clone the Repository**
-
-```bash
-git clone [https://github.com/YOUR_USERNAME/food-recommendation-rag.git](https://github.com/YOUR_USERNAME/food-recommendation-rag.git)
-cd food-recommendation-rag
+```
+photo ──► Claude (vision) describes the dish ─┐
+                                              ▼
+text + last 5 turns ──► Claude plan call (tool use) ──► intent, search query, hard filters
+                                              │
+                    chat ◄────────────────────┤
+                                              ▼
+              FAISS vector search (Titan Text Embeddings v2) over only the dishes
+              that pass every filter: price, vegetarian, cuisine, allergens, rating
+                                              │
+                                              ▼
+            Claude rank call (tool use) picks up to 3 candidates and writes a grounded summary
 ```
 
-**2. Create Virtual Environment**
+- **Bedrock Converse API** for every model call (`bedrock.py`). The model ID is configurable, and the default is Claude Haiku 5.5 through the US cross-Region inference profile.
+- **Hybrid search** (`retrieval.py`):
+  - Filters are hard constraints in code, applied over vector search, not instructions in a prompt.
+  - Allergens are checked against both the listed dietary warnings and the ingredient list.
+  - Allergen matching is deliberately broad, so a dish is excluded when in doubt.
+- **Structured output via tool use.** The planner and the ranker each return schema-checked JSON.
+  - Any dish ID the model invents or repeats is dropped.
+  - If the model wraps JSON in prose, the parser still recovers it.
+- **Calls per turn** (enforced in `tests/test_pipeline.py`): small talk 1, recommendation 2, plus 1 when a photo is attached. A filter that matches nothing is answered without a second call.
+- **Bedrock Guardrails** (optional): set `BEDROCK_GUARDRAIL_ID` to apply a guardrail to every call. `scripts/create_guardrail.py` creates one with:
+  - content filters
+  - prompt-attack defence
+  - PII blocking
+  - a denied topic for medical or allergy-safety guarantees
+- **Uploads**: the app detects the real image type (PNG, JPEG, GIF or WebP) and clears the photo after it has been used.
+
+## Data and index
+
+| File | Purpose |
+|---|---|
+| `data/dishes.jsonl` | Source of truth: one row per dish, with its image description and structured fields |
+| `ingest.py` | Builds `output/faiss_index` from `dishes.jsonl` with Titan Text Embeddings v2. The embedded text includes the dish, restaurant and cuisine. |
+| `data/images/` | Menu photos shown on the recommendation cards |
+| `data/*.csv` | Original raw menu data, kept for reference |
+
+The committed index was built before restaurant and cuisine were added to the embedded text. Run `python ingest.py` to rebuild it in the new format. Its metadata already supports every filter.
+
+## Evaluation
+
+`eval/cases.jsonl` holds 32 labelled requests. Each one carries the filters it should produce and the dishes that would satisfy it. `eval/run_eval.py` runs the live pipeline on Bedrock and reports:
+
+- intent accuracy
+- filter-extraction accuracy
+- hit rate: a labelled dish is among the picks
+- constraint violations: must be 0
+- groundedness, judged per summary by a second Claude model
+
+It exits non-zero when a gate fails and writes the full results to `eval/results/`.
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python eval/run_eval.py            # needs AWS credentials with Bedrock access
 ```
 
-**3. Install Dependencies**
+The offline suite (`pytest`) fakes Bedrock and runs in CI on every push. It covers:
+- filters and allergen matching
+- call counts per turn
+- request shapes, checked against botocore's Bedrock API model
+- the Streamlit app itself, via `AppTest`
+- the eval labels
+
+## Setup
 
 ```bash
+git clone https://github.com/Aman12x/GourmetGuide.AI.git
+cd GourmetGuide.AI
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**4. Configure Credentials**
-Create a `.env` file in the root directory:
+Credentials come from the standard AWS chain (`aws configure`, SSO, an IAM role, or environment variables). On Streamlit Cloud, put them in `st.secrets`. Optional settings, as environment variables or secrets:
 
-```ini
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_DEFAULT_REGION=us-east-1
-```
+| Setting | Default |
+|---|---|
+| `AWS_DEFAULT_REGION` | `us-east-1` |
+| `BEDROCK_MODEL_ID` | `us.anthropic.claude-haiku-5-5` |
+| `BEDROCK_GUARDRAIL_ID` / `BEDROCK_GUARDRAIL_VERSION` | none / `DRAFT` |
 
-*Note: Ensure your AWS account has model access enabled for Claude 3 and Titan Embeddings in the us-east-1 region.*
-
-**5. Run the Application**
+Your account needs Bedrock model access to the Claude model and to `amazon.titan-embed-text-v2:0`.
 
 ```bash
+python ingest.py          # rebuild the index after editing data/dishes.jsonl
 streamlit run app.py
+pip install -r requirements-dev.txt && pytest
 ```
 
-## 📊 Sample Interaction
+## Project structure
 
-> **User:** *Uploads a picture of a pepperoni pizza*
->
-> **System:** "This looks like a classic Pepperoni Pizza with a crispy crust. Based on this, I recommend the 'Spicy Salami Pizza' from Tony's Bistro. It has similar toppings but with an extra kick of chili oil. Would you like to check the nutrition facts?"
-<img width="1440" height="802" alt="image" src="https://github.com/user-attachments/assets/61846b9c-8627-4b7a-8ceb-200dff5018d9" />
-
------
-
-Developed by Aman Singh 
 ```
+├── app.py                 # Streamlit UI
+├── pipeline.py            # One chat turn: describe image → plan → filtered search → rank
+├── retrieval.py           # Metadata filters, allergen matching, filtered FAISS search
+├── bedrock.py             # Converse wrapper: structured output, guardrails, image types
+├── ingest.py              # Builds the FAISS index from data/dishes.jsonl
+├── scripts/               # create_guardrail.py, export_dishes.py (one-time export)
+├── eval/                  # Labelled cases and the live eval runner
+├── tests/                 # Offline pytest suite (Bedrock faked)
+└── output/faiss_index/    # Committed vector index
 ```
+
+Developed by Aman Singh
