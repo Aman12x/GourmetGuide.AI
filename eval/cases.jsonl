@@ -1,0 +1,32 @@
+{"id": "pizza-basic", "query": "I want a pizza", "expect": {}, "relevant": ["R001M001", "R006M001", "R006M002", "R006M003", "R006M004", "R006M005", "R007M005"]}
+{"id": "veg-pizza", "query": "vegetarian pizza please", "expect": {"vegetarian": true}, "relevant": ["R001M001", "R006M001", "R006M004", "R007M005"]}
+{"id": "pizza-under-12", "query": "pizza for under $12", "expect": {"max_price": 12}, "relevant": ["R001M001", "R006M001", "R006M004"]}
+{"id": "sushi", "query": "craving sushi rolls", "expect": {}, "relevant": ["R004M001", "R004M002", "R007M003"]}
+{"id": "spicy-sushi", "query": "something spicy with raw fish", "expect": {}, "relevant": ["R004M002"]}
+{"id": "indian-veg", "query": "vegetarian Indian food", "expect": {"vegetarian": true, "cuisines": ["Indian"]}, "relevant": ["R003M002", "R003M004", "R010M001", "R010M002", "R010M003", "R010M005"]}
+{"id": "south-indian-cheap", "query": "cheap South Indian breakfast under $4", "expect": {"max_price": 4, "cuisines": ["South Indian"]}, "relevant": ["R010M001", "R010M002", "R010M003", "R010M005"]}
+{"id": "dosa", "query": "do you have masala dosa?", "expect": {}, "relevant": ["R010M001"]}
+{"id": "curry-creamy", "query": "a rich creamy curry", "expect": {}, "relevant": ["R003M001", "R003M002"]}
+{"id": "rice-dish", "query": "a filling rice dish with chicken", "expect": {}, "relevant": ["R003M003", "R002M005"]}
+{"id": "chinese-no-peanuts", "query": "Chinese food but I have a peanut allergy", "expect": {"cuisines": ["Chinese"], "exclude_allergens": ["peanuts"]}, "relevant": ["R002M002", "R002M003", "R002M004", "R002M005"]}
+{"id": "kung-pao", "query": "kung pao chicken", "expect": {}, "relevant": ["R002M001"]}
+{"id": "mexican-tacos", "query": "tacos!", "expect": {}, "relevant": ["R005M001"]}
+{"id": "mexican-veg", "query": "vegetarian Mexican food", "expect": {"vegetarian": true, "cuisines": ["Mexican"]}, "relevant": ["R005M002", "R005M004"]}
+{"id": "dessert", "query": "something sweet for dessert", "expect": {}, "relevant": ["R001M005", "R003M005", "R004M005", "R005M004"]}
+{"id": "dessert-no-dairy", "query": "a dessert without dairy, I'm lactose intolerant", "expect": {"exclude_allergens": ["dairy"]}, "relevant": ["R005M004"]}
+{"id": "burger", "query": "a juicy beef burger", "expect": {}, "relevant": ["R008M001", "R008M003"]}
+{"id": "vegan-burger", "query": "a vegan burger", "expect": {"vegetarian": true}, "relevant": ["R007M002", "R008M002"]}
+{"id": "gluten-free", "query": "gluten free lunch", "expect": {"exclude_allergens": ["gluten"]}, "relevant": ["R003M003", "R004M001", "R004M004", "R005M002", "R010M002"]}
+{"id": "sandwich-bacon", "query": "a sandwich with bacon", "expect": {}, "relevant": ["R009M001", "R009M005"]}
+{"id": "veg-sandwich", "query": "vegetarian sandwich", "expect": {"vegetarian": true}, "relevant": ["R009M002"]}
+{"id": "high-rated", "query": "your best rated dishes, 4.8 stars or more", "expect": {"min_rating": 4.8}, "relevant": ["R003M001", "R004M005", "R005M005", "R006M004", "R007M004", "R009M005", "R010M004"]}
+{"id": "cheap-snack", "query": "a snack under $3", "expect": {"max_price": 3}, "relevant": ["R003M004", "R010M001", "R010M003", "R010M005"]}
+{"id": "soup", "query": "a warm light soup", "expect": {}, "relevant": ["R004M004"]}
+{"id": "salad", "query": "a fresh salad", "expect": {}, "relevant": ["R007M001"]}
+{"id": "pasta", "query": "pasta with cheese", "expect": {}, "relevant": ["R001M002", "R001M003"]}
+{"id": "no-eggs-japanese", "query": "Japanese dish, no eggs please", "expect": {"cuisines": ["Japanese"], "exclude_allergens": ["eggs"]}, "relevant": ["R004M001", "R004M004", "R004M005"]}
+{"id": "meat-lover", "query": "I want meat, something with pork", "expect": {"vegetarian": false}, "relevant": ["R002M002", "R005M001"]}
+{"id": "fried-starter", "query": "a crispy fried starter", "expect": {}, "relevant": ["R002M003", "R003M004", "R004M003", "R010M003"]}
+{"id": "nut-free-indian", "query": "Indian or South Indian food without nuts", "expect": {"exclude_allergens": ["nuts"]}, "relevant": ["R003M001", "R003M002", "R003M003", "R003M004", "R010M001", "R010M002", "R010M005"]}
+{"id": "chat-greeting", "query": "hi there, who are you?", "expect": {"intent": "chat"}, "relevant": []}
+{"id": "chat-offtopic", "query": "what's the capital of France?", "expect": {"intent": "chat"}, "relevant": []}
